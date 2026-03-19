@@ -1,0 +1,29 @@
+# Build directories
+build/
+jetson/build/
+
+# Compiled objects
+*.o
+*.a
+*.so
+*.bin
+*.exe
+
+# CUDA intermediates
+*.ptx
+*.cubin
+*.fatbin
+*.module_id
+
+# Logs and runtime data
+logs/
+*.csv
+*.jpg
+*.png
+
+# IDE
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

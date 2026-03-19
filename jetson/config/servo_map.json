@@ -1,0 +1,23 @@
+{
+  "description": "Manoi PF01 — 17-axis ICS servo mapping (PATCHED: real config)",
+  "note": "HEAD_TILT/WAIST_YAW removed. ANKLE_ROLL added. 2ch UART (left/right body). ICS IDs provisional.",
+  "mapping": [
+    { "joint": "head_pan",      "index": 0,  "ics_id": 0,  "uart_ch": 0, "group": "head" },
+    { "joint": "l_sh_pitch",    "index": 1,  "ics_id": 1,  "uart_ch": 0, "group": "left_arm" },
+    { "joint": "l_sh_roll",     "index": 2,  "ics_id": 2,  "uart_ch": 0, "group": "left_arm" },
+    { "joint": "l_elbow",       "index": 3,  "ics_id": 3,  "uart_ch": 0, "group": "left_arm" },
+    { "joint": "r_sh_pitch",    "index": 4,  "ics_id": 4,  "uart_ch": 1, "group": "right_arm" },
+    { "joint": "r_sh_roll",     "index": 5,  "ics_id": 5,  "uart_ch": 1, "group": "right_arm" },
+    { "joint": "r_elbow",       "index": 6,  "ics_id": 6,  "uart_ch": 1, "group": "right_arm" },
+    { "joint": "l_hip_pitch",   "index": 7,  "ics_id": 7,  "uart_ch": 0, "group": "left_leg" },
+    { "joint": "l_hip_roll",    "index": 8,  "ics_id": 8,  "uart_ch": 0, "group": "left_leg" },
+    { "joint": "l_knee",        "index": 9,  "ics_id": 9,  "uart_ch": 0, "group": "left_leg" },
+    { "joint": "l_ankle_pitch", "index": 10, "ics_id": 10, "uart_ch": 0, "group": "left_leg" },
+    { "joint": "l_ankle_roll",  "index": 11, "ics_id": 11, "uart_ch": 0, "group": "left_leg" },
+    { "joint": "r_hip_pitch",   "index": 12, "ics_id": 12, "uart_ch": 1, "group": "right_leg" },
+    { "joint": "r_hip_roll",    "index": 13, "ics_id": 13, "uart_ch": 1, "group": "right_leg" },
+    { "joint": "r_knee",        "index": 14, "ics_id": 14, "uart_ch": 1, "group": "right_leg" },
+    { "joint": "r_ankle_pitch", "index": 15, "ics_id": 15, "uart_ch": 1, "group": "right_leg" },
+    { "joint": "r_ankle_roll",  "index": 16, "ics_id": 16, "uart_ch": 1, "group": "right_leg" }
+  ]
+}

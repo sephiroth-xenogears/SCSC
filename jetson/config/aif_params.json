@@ -1,0 +1,45 @@
+{
+  "particle_count": 5000,
+  "action_candidates_per_group": 16,
+  "top_k_per_group": 4,
+  "final_candidates": 64,
+  "ess_threshold_ratio": 0.5,
+  "rng_seed": 42,
+
+  "groups": {
+    "neck":      { "k": 2.0, "d": 1.5, "sigma_proc": 0.10, "dt_hz": 30 },
+    "left_arm":  { "k": 1.5, "d": 1.2, "sigma_proc": 0.08, "dt_hz": 100 },
+    "right_arm": { "k": 1.5, "d": 1.2, "sigma_proc": 0.08, "dt_hz": 100 },
+    "left_leg":  { "k": 3.0, "d": 2.0, "sigma_proc": 0.05, "dt_hz": 100 },
+    "right_leg": { "k": 3.0, "d": 2.0, "sigma_proc": 0.05, "dt_hz": 100 }
+  },
+
+  "observation": {
+    "sigma_visual": 0.05,
+    "sigma_joint": 0.009,
+    "sigma_current": 50.0,
+    "w_vis": 1.0,
+    "w_joint": 0.5,
+    "w_current": 0.2
+  },
+
+  "preference": {
+    "face_cx": 0.0,
+    "face_cy": 0.0,
+    "face_size": 0.25,
+    "sigma_visual": 0.1,
+    "sigma_standing": 0.05
+  },
+
+  "efe": {
+    "risk_weight": 1.0,
+    "ambiguity_weight": 1.0,
+    "temperature": 0.5
+  },
+
+  "visibility": {
+    "steepness": 5.0,
+    "default_face_size": 0.25,
+    "face_aspect_ratio": 1.3
+  }
+}
