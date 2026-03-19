@@ -1,56 +1,68 @@
-# SCSC Phase 7: Full-Body 17-Axis Active Inference Control
+# 超電脳サイバネティクス — SCSC
 
-**超電脳サイバネティクス制御** — 脳が予測し、身体が動く。
+**SCSC Active Inference Humanoid Control System**
 
-## Overview
+> 脳が予測し、身体が動く。
 
-Phase 7 extends the Phase 6 face-tracking Active Inference engine from 2-axis (pan/tilt) to full-body 17-axis coordinated control on a Manoi PF01 humanoid robot.
+自由エネルギー原理に基づく Active Inference フレームワークで、17軸ヒューマノイドロボット（Manoi PF01）を全身協調制御するプロジェクトです。
 
-| Component | Platform | Role |
-|-----------|----------|------|
-| Cognitive Layer | Jetson AGX Orin | Vision, AIF inference, action planning |
-| Drive Layer | Teensy 4.1 | Servo communication, DMA, safety watchdog |
-| Body Layer | Manoi PF01 | 17× KRS-4024S HV servos, ICS 3.5 |
+📥 **[プレゼン資料をダウンロード（.pptx）](docs/scsc-pr-phase1-7.pptx)**
 
-## Architecture
+---
 
-```
-Camera → FaceDetect → ObservationBuilder → AIF Engine → ServoCommander → Teensy → Servos
-  (M1)     (M2)           (M3)           (M4-M7)         (M8)         (T1-T5)
-                                            ↑                            |
-                                    SafetyMonitor (M10)                  |
-                                            ↑          servo feedback    |
-                                            ←────────────────────────────┘
-```
+## Phase 1 — 7 Progress Report
 
-## Build (Jetson)
+### 1. タイトル
+![Slide 1 - Title](docs/slides/slide-01.jpg)
 
-```bash
-cd jetson
-mkdir build && cd build
-cmake -DCMAKE_CUDA_ARCHITECTURES=87 -DCMAKE_BUILD_TYPE=Release ..
-make -j$(nproc)
-```
+### 2. Project Vision
+![Slide 2 - Project Vision](docs/slides/slide-02.jpg)
 
-## Run
+### 3. Platform
+![Slide 3 - Platform](docs/slides/slide-03.jpg)
 
-```bash
-# Loopback mode (no Teensy required)
-sudo ./build/phase7_main --loopback --log-dir ./logs
+### 4. Development Timeline
+![Slide 4 - Development Timeline](docs/slides/slide-04.jpg)
 
-# With real servos
-sudo ./build/phase7_main --real-servo --uart /dev/ttyTHS1 --baudrate 1250000
-```
+### 5. Phase 6 — 顔追従 Active Inference
+![Slide 5 - Phase 6 Face Tracking](docs/slides/slide-05.jpg)
 
-## Build (Teensy)
+### 6. Phase 7 — 全身 17軸 Active Inference 制御
+![Slide 6 - Phase 7 Full Body Control](docs/slides/slide-06.jpg)
 
-```bash
-cd teensy
-pio run -e teensy41
-pio run -t upload
-```
+### 7. System Architecture
+![Slide 7 - System Architecture](docs/slides/slide-07.jpg)
 
-## Document Reference
+### 8. By the Numbers
+![Slide 8 - By the Numbers](docs/slides/slide-08.jpg)
 
-- `SCSC-P7-ARCH-001` — Software Architecture Design (this codebase)
-- `SCSC-P6-RPT` — Phase 6A Technical Report
+### 9. Safety Architecture
+![Slide 9 - Safety Architecture](docs/slides/slide-09.jpg)
+
+### 10. EFE Planner — 2段階行動計画
+![Slide 10 - EFE Planner](docs/slides/slide-10.jpg)
+
+### 11. Status & Next Steps
+![Slide 11 - Status and Next Steps](docs/slides/slide-11.jpg)
+
+### 12. エンディング
+![Slide 12 - Ending](docs/slides/slide-12.jpg)
+
+---
+
+## Tech Stack
+
+| Layer | Hardware | Role |
+|-------|----------|------|
+| 認知層 | Jetson AGX Orin | CUDA AIF 推論エンジン（5000粒子 × 100Hz） |
+| 駆動層 | Teensy 4.1 | ICS 3.5 サーボ制御（リアルタイム 100Hz） |
+| 身体層 | Manoi PF01 | KRS-4024S HV × 17軸 ヒューマノイド |
+
+## References
+
+- Thomas Parr, Giovanni Pezzulo, Karl J. Friston (2022). *Active Inference: The Free Energy Principle in Mind, Brain, and Behavior*. MIT Press.
+- 乾敏郎 訳『能動的推論 — 心、脳、行動の自由エネルギー原理』ミネルヴァ書房
+
+## License
+
+TBD
