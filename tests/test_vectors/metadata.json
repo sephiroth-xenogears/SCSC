@@ -1,0 +1,99 @@
+{
+  "state_dim": 38,
+  "num_policies": 10,
+  "vfe_iterations": 10,
+  "fp32_tolerance": 1e-05,
+  "relaxed_tolerance": 0.0001,
+  "seed_model": 42,
+  "seed_data": 123,
+  "files": {
+    "A.bin": {
+      "shape": [
+        38,
+        38
+      ],
+      "dtype": "float32"
+    },
+    "B.bin": {
+      "shape": [
+        10,
+        38,
+        38
+      ],
+      "dtype": "float32"
+    },
+    "C.bin": {
+      "shape": [
+        38,
+        38
+      ],
+      "dtype": "float32"
+    },
+    "D.bin": {
+      "shape": [
+        38
+      ],
+      "dtype": "float32"
+    },
+    "Pi_o.bin": {
+      "shape": [
+        38
+      ],
+      "dtype": "float32"
+    },
+    "Pi_x.bin": {
+      "shape": [
+        38
+      ],
+      "dtype": "float32"
+    },
+    "mu_init.bin": {
+      "shape": [
+        38
+      ],
+      "dtype": "float32"
+    },
+    "o.bin": {
+      "shape": [
+        38
+      ],
+      "dtype": "float32"
+    },
+    "mu_expected.bin": {
+      "shape": [
+        38
+      ],
+      "dtype": "float32"
+    },
+    "F_expected.bin": {
+      "shape": [
+        1
+      ],
+      "dtype": "float32"
+    },
+    "G_expected.bin": {
+      "shape": [
+        10
+      ],
+      "dtype": "float32"
+    },
+    "probs_expected.bin": {
+      "shape": [
+        10
+      ],
+      "dtype": "float32"
+    },
+    "action_expected.bin": {
+      "shape": [
+        1
+      ],
+      "dtype": "int32"
+    },
+    "F_trace.bin": {
+      "shape": [
+        11
+      ],
+      "dtype": "float32"
+    }
+  }
+}
