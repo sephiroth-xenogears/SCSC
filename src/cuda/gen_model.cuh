@@ -73,20 +73,6 @@ struct InferenceOutput {
     int   action;
 };
 
-// ============================================================
-// TODO (M1-b): Kernel declarations
-// ============================================================
-// __global__ void active_inference_step(
-//     const float* __restrict__ A,       // Shared Memory
-//     const float* __restrict__ o,       // observation
-//     const float* __restrict__ C,
-//     const float* __restrict__ D,
-//     const float* __restrict__ Pi_o,
-//     const float* __restrict__ Pi_x,
-//     float* __restrict__ mu,            // in/out
-//     InferenceOutput* __restrict__ out,
-//     int policy_offset,                  // Plan B support
-//     int policy_count                    // Plan B support
-// );
+// Kernel declarations: see active_inference_kernel.cuh
 
 #endif // SCSC_GEN_MODEL_CUH
