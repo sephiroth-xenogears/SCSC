@@ -55,7 +55,7 @@ set(CUDA_SOURCES
 )
 
 set(CPP_SOURCES
-    src/cuda/main.cpp
+    src/cuda/main.cu
 )
 
 # ---- Header Files ----
@@ -76,6 +76,7 @@ target_include_directories(scsc_binary PRIVATE
 
 # ---- Test Binary ----
 add_executable(scsc_test
+    src/cuda/active_inference_kernel.cu
     src/cuda/test_harness.cu
 )
 
@@ -133,3 +134,6 @@ message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "  CUDA Flags: ${CMAKE_CUDA_FLAGS}")
 message(STATUS "================================")
 message(STATUS "")
+find_package(CUDAToolkit REQUIRED)
+target_include_directories(scsc_binary PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+target_link_libraries(scsc_binary PRIVATE CUDA::cudart)

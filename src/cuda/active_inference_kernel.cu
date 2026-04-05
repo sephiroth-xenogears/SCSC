@@ -316,3 +316,4 @@ template __global__ void active_inference_kernel<true>(
     const float*, float*, InferenceOutput*,
     int, int,
     volatile int*, volatile int*, volatile int*, int);
+
