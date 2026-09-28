@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
     printf("Loaded all test vectors.\n");
 
     // ---- Upload B to Constant Memory ----
-    CUDA_CHECK(cudaMemcpyToSymbol(d_B, model.B, sizeof(model.B)));
+    CUDA_CHECK(load_B_matrices((const float*)model.B, sizeof(model.B)));
 
     // ---- Allocate device memory ----
     float *d_A, *d_C, *d_D, *d_Pi_o, *d_Pi_x, *d_obs, *d_mu;

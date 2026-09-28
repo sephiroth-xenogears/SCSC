@@ -164,6 +164,47 @@ __global__ void active_inference_kernel(
     }
 
     // ============================================================
+    // F recomputation with final mu (matches reference.py F_final)
+    // ============================================================
+    // The VFE loop's s_F reflects pre-update mu. Recompute after
+    // the last gradient step so F matches the converged state.
+    {
+        float f_local = 0.0f;
+        if (tid < STATE_DIM) {
+            // MatVec: C @ mu → o_pred
+            float acc = 0.0f;
+            for (int j = 0; j < STATE_DIM; j++) {
+                acc += s_C[tid][j] * s_mu[j];
+            }
+            float o_pred_i = acc;
+
+            float eps_o_i = s_o[tid] - o_pred_i;
+            float eps_x_i = s_mu[tid] - s_D[tid];
+
+            f_local = s_Pi_o[tid] * eps_o_i * eps_o_i
+                    + s_Pi_x[tid] * eps_x_i * eps_x_i;
+        }
+
+        // Single warp reduction — both warps reduce independently
+        // (__shfl_down_sync operates per-warp)
+        for (int offset = 16; offset > 0; offset >>= 1) {
+            f_local += __shfl_down_sync(0xFFFFFFFF, f_local, offset);
+        }
+        // tid 0 = warp 0 sum, tid 32 = warp 1 sum
+
+        // Cross-warp exchange
+        if (tid == 32) {
+            s_temp[0] = f_local;
+        }
+        __syncthreads();
+
+        if (tid == 0) {
+            s_F = 0.5f * (f_local + s_temp[0]);
+        }
+        __syncthreads();
+    }
+
+    // ============================================================
     // Stage 2: G(π) Evaluation (K=10 policies)
     // ============================================================
 
@@ -300,6 +341,13 @@ __global__ void active_inference_kernel(
         __syncthreads();
         if (*flag_shutdown) return;
     }
+}
+
+// ============================================================
+// Constant Memory loader (avoids symbol duplication across TUs)
+// ============================================================
+cudaError_t load_B_matrices(const float* B_host, size_t size) {
+    return cudaMemcpyToSymbol(d_B, B_host, size);
 }
 
 // ============================================================

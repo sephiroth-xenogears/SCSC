@@ -64,4 +64,9 @@ inline void launch_active_inference(
     );
 }
 
+// ============================================================
+// Constant Memory loader (defined in active_inference_kernel.cu)
+// ============================================================
+cudaError_t load_B_matrices(const float* B_host, size_t size);
+
 #endif // SCSC_ACTIVE_INFERENCE_KERNEL_CUH

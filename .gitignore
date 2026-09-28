@@ -2,6 +2,29 @@
 build/
 jetson/build/
 
+# ビルド成果物（拡張子なしの実行ファイル）
+src/cuda/Matmul_tiled
+src/cuda/Separate_blur
+src/cuda/Sliding_blur
+src/cuda/Tiled_separable_blur
+src/cuda/Vecter_add
+src/cuda/bandwidth_test
+src/cuda/blur
+src/cuda/blur_tiled
+src/cuda/inv3_spd_aos
+src/cuda/inv3_spd_soa
+src/cuda/inv3_spd_typed
+src/cuda/naive_reduction
+src/cuda/shared_reduction_gsl
+src/cuda/warp_shuffle_reduction
+
+# Python
+__pycache__/
+*.pyc
+
+# その他
+*.o
+*.ncu-rep
 # Compiled objects
 *.o
 *.a

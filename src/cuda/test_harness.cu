@@ -104,7 +104,7 @@ static void load_all(const std::string& dir) {
 }
 
 static void alloc_device() {
-    CUDA_CHECK(cudaMemcpyToSymbol(d_B, model.B, sizeof(model.B)));
+    CUDA_CHECK(load_B_matrices((const float*)model.B, sizeof(model.B)));
     CUDA_CHECK(cudaMalloc(&d_A,    STATE_DIM * STATE_DIM * sizeof(float)));
     CUDA_CHECK(cudaMalloc(&d_C,    STATE_DIM * STATE_DIM * sizeof(float)));
     CUDA_CHECK(cudaMalloc(&d_D,    STATE_DIM * sizeof(float)));
