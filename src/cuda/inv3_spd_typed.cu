@@ -22,6 +22,7 @@
 #include <vector>
 #include <random>
 #include <cuda_runtime.h>
+#include <algorithm>
 // ---- エラーチェック(内部変数は err_ : 以前の e 衝突の教訓) ----
 #define CUDA_CHECK(call)                                                     \
     do {                                                                     \
@@ -37,14 +38,27 @@
 static const int N = 1 << 20;     // 1,048,576 行列(第2段と同一)
 static const int BLOCK = 256;     
 static const int NREP  = 20;      //計時はNREP回平均(ウォームアップ別)
+static const double EPS_LIST[] = { 1e-1, 1e-2, 1e-3, 1e-4,1e-5 };
+static const int EPS_COUNT = sizeof(EPS_LIST)/sizeof(EPS_LIST[0]);
 static const double EPS = 0.1;    //A = MᵀM + EPS·I(正定値・条件数の調整弁)
 
 // ---- SoA: 対称3x3の上三角6要素 ----
 template <typename T>
 struct SoA6
 {
-    T *a00, *a01, *a02, *a11, *a12, *a22;/* data */
+    T* p[6];  // a00,a01,a02,a11,a12,a22 の6配列
+
 };
+struct RunResult { double worst, ms, effBW, gflops; };
+
+// 対称3x3の上三角6要素のインデックス（この順序が全コードの唯一の約束）
+//   [A00 A01 A02]
+//   [A01 A11 A12]
+//   [A02 A12 A22]
+enum { I00 = 0, I01 = 1, I02 = 2, I11 = 3, I12 = 4, I22 = 5 };
+
+
+
 
 // =====================================================================
 // 核心: 余因子展開による SPD 3x3 逆行列(唯一の定義箇所)
@@ -52,24 +66,23 @@ struct SoA6
 // =====================================================================
 template <typename T>
 __host__ __device__ inline void inv3_spd_core(
-    T a00, T a01, T a02, T a11, T a12, T a22,
-    T &i00, T &i01, T &i02, T &i11, T &i12, T &i22){
-    const T c00 = a11 * a22 - a12 * a12;
-    const T c01 = a02 * a12 - a01 * a22;
-    const T c02 = a01 * a12 - a02 * a11;
-    const T c11 = a00 * a22 - a02 * a02;
-    const T c12 = a01 * a02 - a00 * a12;
-    const T c22 = a00 * a11 - a01 * a01;
+    T a[6],T inv[6]){
+    const T c00 = a[I11] * a[I22] - a[I12] * a[I12];
+    const T c01 = a[I02] * a[I12] - a[I01] * a[I22];
+    const T c02 = a[I01] * a[I12] - a[I02] * a[I11];
+    const T c11 = a[I00] * a[I22] - a[I02] * a[I02];
+    const T c12 = a[I01] * a[I02] - a[I00] * a[I12];
+    const T c22 = a[I00] * a[I11] - a[I01] * a[I01];
 
-    const T det = a00 * c00 + a01 * c01 + a02 * c02;
+    const T det = a[I00] * c00 + a[I01] * c01 + a[I02] * c02;
     const T r = T(1) / det;     // 除算は一度、以後は乗算6回
 
-    i00 = c00 * r;
-    i01 = c01 * r;
-    i02 = c02 * r;
-    i11 = c11 * r;
-    i12 = c12 * r;
-    i22 = c22 * r;
+    inv[I00] = c00 * r;
+    inv[I01] = c01 * r;
+    inv[I02] = c02 * r;
+    inv[I11] = c11 * r;
+    inv[I12] = c12 * r;
+    inv[I22] = c22 * r;
 
 }
 
@@ -79,21 +92,19 @@ __global__ void inv3_soa_kernel(SoA6<T> A, SoA6<T> Ainv, int n){
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
     if(i >= n)return;
 
-    T i00, i01, i02, i11, i12, i22;
-    inv3_spd_core<T>(A.a00[i], A.a01[i], A.a02[i],
-                     A.a11[i], A.a12[i], A.a22[i],
-                     i00, i01, i02, i11, i12, i22);
-    Ainv.a00[i] = i00;
-    Ainv.a01[i] = i01;
-    Ainv.a02[i] = i02;
-    Ainv.a11[i] = i11;
-    Ainv.a12[i] = i12;
-    Ainv.a22[i] = i22;
+    T a[6], inv[6];
+    #pragma unroll
+    for(int k = 0; k < 6; ++k)a[k] = A.p[k][i];
+
+    inv3_spd_core<T>(a, inv);
+
+    #pragma unroll
+    for(int k = 0; k < 6; ++k)Ainv.p[k][i] = inv[k];
 }
 
 // ---- SPD 行列群の生成(double、単一の真実) ----
 // M を一様乱数 [-1,1] で作り A = MᵀM + EPS·I。
-static void gen_spd_double(std::vector<double> h[6], int n){
+static void gen_spd_double(std::vector<double> h[6], int n, double eps){
     std::mt19937 rng(42);
     std::uniform_real_distribution<double> uni(-1.0, 1.0);
 
@@ -110,7 +121,7 @@ static void gen_spd_double(std::vector<double> h[6], int n){
        for(int c = r; c < 3; ++c){
         double s = 0.0;
         for(int k = 0; k < 3; ++k) s += m[k][r] * m[k][c];
-        a[r][c] = s + (r == c ? EPS : 0.0);
+        a[r][c] = s + (r == c ? eps : 0.0);
        }
     h[0][i] = a[0][0];
     h[1][i] = a[0][1];
@@ -121,8 +132,60 @@ static void gen_spd_double(std::vector<double> h[6], int n){
     }
 }
 
-// ---- 検証(常に double): worst = max |A·Ainv − I| ----
-// A は生成時の double 値、Ainv は各経路の結果を double に持ち上げて評価。
+// ---- 対称3x3の固有値（解析解、昇順で返す）----
+// 特性方程式を三角関数で解く方法。SPD前提なので実固有値が3つ。
+static void eig3_sym(const double a[6], double lam[3]){
+    // トレースを引いて偏差行列 B = A - qI にする（q = tr(A)/3）
+    const double q = (a[I00] + a[I11] + a[I22]) / 3.0;
+
+    const double b00 = a[I00] - q, b11 = a[I11] - q, b22 = a[I22] - q;
+    const double b01 = a[I01], b02 = a[I02], b12 = a[I12];
+
+    //p2 = ||B|||_F^2 / 6 相当（非対角は2回数える）
+    const double p2 = (b00 * b00 + b11 * b11 + b22 * b22 + 2.0 * (b01 * b01 + b02 * b02 + b12 * b12)) / 6.0;
+    const double p = std::sqrt(p2);
+
+    if(p < 1e-300){ // Aがほぼq*I(三重固有値)
+        lam[0] = lam[1] = lam[2] = q;
+        return;
+    }
+
+    // det(B/p) = cos(3θ) の計算
+    const double d00 = b00 / p, d11 = b11 / p, d22 = b22 / p;
+    const double d01 = b01 / p, d02 = b02 / p, d12 = b12 / p;
+          double r = ( d00 * (d11 * d22 - d12 * d12) 
+                     - d01 * (d01 * d22 - d12 * d02) 
+                     + d02 * (d01 * d12 - d11 * d02)) / 2.0;
+
+if(r <= -1.0) r = -1.0;
+else if(r >= 1.0) r = 1.0;
+
+    const double phi = std::acos(r) / 3.0;
+    const double PI = 3.14159265358979323846;
+
+    //降順に出る
+    const double e0 = q + 2.0 * p * std::cos(phi);
+    const double e2 = q + 2.0 * p * std::cos(phi + (2.0 * PI / 3.0));
+    const double e1 = 3.0 * q - e0 - e2; // トレース保存で中間値を出す
+
+    //昇順に詰め直す
+    lam[0] = e2; lam[1] = e1; lam[2] = e0;
+}
+
+static void cond_stats(const std::vector<double> hA[6], int n, double& kap_min, double& kap_med, double& kap_max){
+    std::vector<double> ks(n);
+    for(int i = 0; i < n; ++i){
+        double a[6], lam[3];
+        for(int k = 0; k < 6; ++k) a[k] = hA[k][i];
+        eig3_sym(a, lam);
+        ks[i] = lam[2] / lam[0];
+    }
+    std::sort(ks.begin(), ks.end());
+    kap_min = ks.front();
+    kap_med = ks[n/2];
+    kap_max = ks.back();
+}
+
 static double residual_worst(const std::vector<double> hA[6], const std::vector<double>hI[6], int n){
     double worst = 0.0;
     for(int i = 0; i < n; ++i){
@@ -148,7 +211,7 @@ static double residual_worst(const std::vector<double> hA[6], const std::vector<
 }
 // ---- 1経路の実行: 型 T で GPU 実行し、時間・帯域・残差を報告 ----
 template<typename T>
-static void run(const char *label, const std::vector<double> hA[6], std::vector<double>hOut[6],double tol){
+static RunResult run(const std::vector<double> hA[6], std::vector<double>hOut[6]){
     const size_t bytesT = sizeof(T) * (size_t)N;
 
     // ホスト側: double → T へ変換(生成は一度きり、経路ごとにキャスト)
@@ -161,12 +224,10 @@ static void run(const char *label, const std::vector<double> hA[6], std::vector<
 
     //デバイス確保・転送
     SoA6<T> dA{}, dI{};
-    T **pa[6] = { &dA.a00, &dA.a01, &dA.a02, &dA.a11, &dA.a12, &dA.a22 };
-    T **pi[6] = { &dI.a00, &dI.a01, &dI.a02, &dI.a11, &dI.a12, &dI.a22 };
     for(int k = 0; k < 6; ++k){
-        CUDA_CHECK(cudaMalloc(pa[k], bytesT));
-        CUDA_CHECK(cudaMalloc(pi[k], bytesT));
-        CUDA_CHECK(cudaMemcpy(*pa[k], hin[k].data(), bytesT,cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMalloc(&dA.p[k], bytesT));
+        CUDA_CHECK(cudaMalloc(&dI.p[k], bytesT));
+        CUDA_CHECK(cudaMemcpy(dA.p[k], hin[k].data(), bytesT,cudaMemcpyHostToDevice));
     }
 
         const int grid = (N + BLOCK - 1) / BLOCK;
@@ -197,61 +258,82 @@ static void run(const char *label, const std::vector<double> hA[6], std::vector<
 
         // 結果回収 → double へ持ち上げ → 残差検証
         for(int k = 0; k < 6; ++k){
-            CUDA_CHECK(cudaMemcpy(hout[k].data(), *pi[k], bytesT, cudaMemcpyDeviceToHost));
+            CUDA_CHECK(cudaMemcpy(hout[k].data(), dI.p[k], bytesT, cudaMemcpyDeviceToHost));
             hOut[k].resize(N);
             for(int i = 0; i < N; ++i)hOut[k][i] = (double)hout[k][i];
         }
         const double worst = residual_worst(hA, hOut, N);
-        const bool   pass  = (worst < tol);
-        printf("[%s] N=%d  kernel=%.3f ms  effBW=%.1f GB/s  ~%.1f GFLOPS  "
-       "AI=%.3f flop/B  worst=%.3e  => %s (tol=%.0e)\n",
-        label, N, ms, effBW, gflops,
-        30.0 / (12.0 * sizeof(T)), worst, pass ? "PASS" : "FAIL", tol);
-    for(int k = 0; k < 6; ++k){
-        CUDA_CHECK(cudaFree(*pa[k]));
-        CUDA_CHECK(cudaFree(*pi[k]));
+
+    // デバイス解放
+        for(int k = 0; k < 6; ++k){
+        CUDA_CHECK(cudaFree(dA.p[k]));
+        CUDA_CHECK(cudaFree(dI.p[k]));
     }
     CUDA_CHECK(cudaEventDestroy(ev0));
     CUDA_CHECK(cudaEventDestroy(ev1));
+    return { worst, ms, effBW, gflops };
 }
+
+
 
 int main(){
     printf("=== inv3_spd typed A/B: double vs float (SoA, 1thread=1matrix) ===\n");
-    printf("生成: A = MtM + %.2f*I (double, seed=42) / 検証: doubleで A*Ainv-I\n\n",
-           EPS);
+    printf("生成: A = MtM + eps*I (double, seed=42) / 検証: doubleで A*Ainv-I\n\n");
+printf("%-8s | %-10s | %-10s | %-10s | %-12s | %-12s | %-12s | %-12s\n",
+       "EPS", "kap_min", "kap_med", "kap_max",
+       "CPU worst", "GPUdbl worst", "GPUflt worst", "max|d-f|");
+printf("---------+------------+------------+------------+"
+       "--------------+--------------+--------------+-------------\n");
 
-    static std::vector<double> hA[6];
-    gen_spd_double(hA, N);
+    for(int e = 0; e < EPS_COUNT; ++e){
+        const double eps = EPS_LIST[e];
+    
+        static std::vector<double> hA[6];
+        gen_spd_double(hA, N, eps);
+// ---- 検算: 固有値の和=トレース、積=行列式（最初のEPSのみ）----
+        if(e == 0){
+            double a[6], lam[3];
+            for(int k = 0; k < 6; ++k)a[k] = hA[k][0];
+            eig3_sym(a, lam);
+            const double tr = a[I00] + a[I11] + a[I22];
+            const double det = a[I00] * (a[I11] * a[I22] - a[I12] * a[I12])
+                             - a[I01] * (a[I01] * a[I22] - a[I12] * a[I02])
+                             + a[I02] * (a[I01] * a[I12] - a[I11] * a[I02]);
+            fprintf(stderr, " check: tr=%.6e vs sum(lam)=%.6e, det=%.6e vs prod(lam)=%.6e\n",
+                    tr, lam[0]+lam[1]+lam[2], det, lam[0]*lam[1]*lam[2]);
+            fprintf(stderr, "lam = %.6e %.6e %.6e\n", lam[0], lam[1], lam[2]);
+        }
+
+        double kap_min, kap_med, kap_max;
+        cond_stats(hA, N, kap_min, kap_med, kap_max);
     
     // CPUリファレンス(double, 共有コア関数経由)— 物差しの自己検証
-    {
         static std::vector<double> hRef[6];
         for(int k = 0; k < 6; ++k)hRef[k].resize(N);
         for(int i = 0; i < N; ++i){
-            inv3_spd_core<double>(hA[0][i], hA[1][i], hA[2][i],
-                                  hA[3][i], hA[4][i], hA[5][i],
-                                  hRef[0][i], hRef[1][i], hRef[2][i],
-                                  hRef[3][i], hRef[4][i], hRef[5][i]);
+            double a[6], inv[6];
+            for(int k = 0; k < 6; ++k)a[k] = hA[k][i];
+            inv3_spd_core<double>(a, inv);
+            for(int k = 0; k < 6; ++k)hRef[k][i] = inv[k];
         }
-        const double worst = residual_worst(hA, hRef, N);
-        printf("[CPU ref double] worst=%.3e  => %s\n\n",
-               worst, worst < 1e-9 ? "PASS" : "FAIL");     
+        const double w_cpu = residual_worst(hA, hRef, N);
+        static std::vector<double> hOutD[6], hOutF[6];
+        const RunResult r_dbl = run<double>(hA, hOutD);
+        const RunResult r_flt = run<float>(hA, hOutF);
+        double diff = 0.0;
+        for(int k = 0; k < 6; ++k)
+            for(int i = 0; i < N; ++i){
+                const double d = std::fabs(hOutD[k][i] - hOutF[k][i]);
+                if(d > diff) diff = d;
+            }
+printf("%-8.1e | %-10.3e | %-10.3e | %-10.3e | %-12.3e | %-12.3e | %-12.3e | %-12.3e\n",
+       eps, kap_min, kap_med, kap_max, w_cpu, r_dbl.worst, r_flt.worst, diff);
+printf("         time: dbl %.3f ms (%.1f GB/s, %.1f GFLOP/s) | flt %.3f ms (%.1f GB/s, %.1f GFLOP/s) | dbl/flt %.2fx\n",
+       r_dbl.ms, r_dbl.effBW, r_dbl.gflops,
+       r_flt.ms, r_flt.effBW, r_flt.gflops,
+       r_dbl.ms / r_flt.ms);
+        fflush(stdout);
     }
-
-    static std::vector<double> hOutD[6], hOutF[6];
-
-    run<double>("GPU double", hA, hOutD, 1e-9);    // 第2段の再現(アンカー)
-    run<float>("GPU float", hA, hOutF, 1e-3);      // ★本実験
-
-    // 型間の直接比較: ESKF の double/float 判断材料
-    double diff = 0.0;
-    for(int k = 0; k < 6; ++k)
-        for(int i = 0; i < N; ++i){
-            const double d = std::fabs(hOutD[k][i] - hOutF[k][i]);
-            if(d > diff) diff = d;
-        }
-    printf("\n[double vs float] 逆行列要素の最大差 = %.3e\n", diff);
-    printf("(EPS=%.2f の条件数での値。共分散行列が悪条件ならここが伸びる)\n", EPS);
-
     return 0;
+
 }
